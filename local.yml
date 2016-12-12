@@ -1,0 +1,22 @@
+server:
+  type: simple
+  connector:
+    type: http
+    port: 8080
+  applicationContextPath: /v1
+
+database:
+  driverClass: com.mysql.jdbc.Driver
+  url: jdbc:mysql://localhost/admitone
+  user: root
+  password: password
+
+logging:
+  level: INFO
+  loggers:
+    com.patientping: DEBUG
+    org.skife.jdbi.v2: TRACE
+  appenders:
+    - type: console
+      logFormat: "%-6level [%d{HH:mm:ss.SSS}] [%t] %logger{5} - %X{code} %msg %n"
+      timeZone: UTC

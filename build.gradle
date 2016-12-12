@@ -1,0 +1,178 @@
+plugins {
+  id 'java'
+  id 'application'
+  id 'maven-publish'
+  id 'com.github.johnrengelman.shadow' version '1.2.4'
+}
+
+group = "com.patientping"
+version = "0.1.0"
+mainClassName = 'com.patientping.hiring.AdmitOneApplication'
+
+ext {
+  dropwizardVersion = '1.0.5'
+}
+
+ext.antlr = [
+  grammarPackage: 'com.patientping.hiring.expressions',
+  antlrSource: 'src/main/antlr',
+  destinationDir: 'src/generated/java'
+]
+
+repositories {
+  mavenLocal()
+  mavenCentral()
+}
+
+configurations {
+  antlr4 {
+    description = 'antlr4'
+  }
+  all*.resolutionStrategy {
+    force group: 'com.fasterxml.jackson.module', name:'jackson-module-jaxb-annotations', version: '2.7.8.1'
+  }
+}
+
+dependencies {
+  antlr4 group: 'org.antlr', name: 'antlr4', version: '4.5'
+  compile(
+      [group: 'io.dropwizard', name: 'dropwizard-core', version: dropwizardVersion],
+      [group: 'io.dropwizard', name: 'dropwizard-jdbi', version: dropwizardVersion],
+      [group: 'io.dropwizard', name: 'dropwizard-auth', version: dropwizardVersion],
+      [group: 'io.dropwizard', name: 'dropwizard-migrations', version: dropwizardVersion],
+      [group: 'org.antlr', name: 'antlr4-runtime', version: '4.5'],
+      [group: 'org.antlr', name: 'stringtemplate', version: '3.2.1']
+  )
+  testCompile (
+      [group: 'junit', name: 'junit', version: '4.12'],
+      [group: 'org.hamcrest', name: 'hamcrest-core', version: '1.3'],
+      [group: 'org.hamcrest', name: 'hamcrest-library', version: '1.3'],
+      [group: 'io.dropwizard', name: 'dropwizard-testing', version: dropwizardVersion]
+  )
+  runtime (
+      [group: 'mysql', name: 'mysql-connector-java', version: '5.1.34']
+  )
+}
+
+test {
+  testLogging.showStandardStreams = true
+}
+
+shadowJar {
+  baseName = name
+  classifier = ''
+  mergeServiceFiles()
+  exclude 'META-INF/*.DSA'
+  exclude 'META-INF/*.RSA'
+}
+
+jar {
+  manifest {
+    attributes 'Main-Class': mainClassName
+  }
+}
+
+task sourceJar (type: Jar) {
+  classifier = 'sources'
+  from sourceSets.main.allJava
+}
+
+task javadocJar (type: Jar, dependsOn: javadoc) {
+  classifier = 'javadoc'
+  from javadoc.destinationDir
+}
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      from components.shadow
+
+      artifact javadocJar {
+        classifier = 'javadoc'
+      }
+
+      artifact sourceJar {
+        classifier "sources"
+      }
+    }
+  }
+  repositories {
+    maven {
+      url "https://nexus.local/content/repositories/${project.version.endsWith('-SNAPSHOT') ? 'snapshots' : 'releases' }/"
+      credentials {
+        username = nexusUsername
+        password = nexusPassword
+      }
+    }
+  }
+}
+
+run {
+  args 'server', 'local.yml'
+  if (System.getProperty('debug', 'false') == 'true') {
+    jvmArgs '-Xdebug', '-Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=5005'
+  }
+}
+
+
+task compileGrammar(type: JavaExec) {
+  description = 'Generates Java sources from ANTLR4 grammars.'
+
+  inputs.dir file(antlr.antlrSource)
+  outputs.dir file(antlr.destinationDir)
+
+  def grammars = fileTree(antlr.antlrSource).include('**/*.g4')
+
+  main = 'org.antlr.v4.Tool'
+  classpath = configurations.antlr4
+  def pkg = antlr.grammarPackage.replaceAll('\\.', '/')
+  args = ['-o', "${antlr.destinationDir}/${pkg}"/*, '-atn'*/, '-visitor', '-package', antlr.grammarPackage, grammars.files].flatten()
+}
+
+sourceSets {
+  main {
+    java {
+      srcDir antlr.destinationDir
+    }
+  }
+}
+
+compileJava {
+  dependsOn compileGrammar
+}
+
+clean {
+  delete antlr.destinationDir
+}
+
+task migrate(type: JavaExec, dependsOn: installShadowApp) {
+  group = 'db'
+  description = 'Runs database migrations against the local database'
+  classpath = files(shadowJar.archivePath)
+  main mainClassName
+  args 'db', 'migrate', 'local.yml'
+}
+
+task rollback(type: JavaExec, dependsOn: installShadowApp) {
+  group = 'db'
+  description = 'Reverts the last migration applied to the local database'
+  classpath = files(shadowJar.archivePath)
+  main mainClassName
+  args 'db', 'rollback', '-c', '1', 'local.yml'
+}
+
+task clearChecksums(type: JavaExec, dependsOn: installShadowApp) {
+  group = 'db'
+  description = 'Clears all checksums from the local database'
+  classpath = files(shadowJar.archivePath)
+  main mainClassName
+  args 'db', 'clear-checksums', 'local.yml'
+}
+
+task install(dependsOn: publishToMavenLocal) {
+  group = 'publishing'
+}
+
+task deploy(dependsOn: publish) {
+  group = 'publishing'
+}

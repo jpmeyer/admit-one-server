@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+  <changeSet id="1" author="john">
+    <createTable schemaName="admitone" tableName="users">
+      <column name="id" type="bigint" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false" unique="true"/>
+      </column>
+      <column name="login" type="varchar(127)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+    <createTable schemaName="admitone" tableName="shows">
+      <column name="id" type="bigint" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false" unique="true"/>
+      </column>
+      <column name="doorsOpenInstant" type="datetime">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+    <createTable schemaName="admitone" tableName="orders">
+      <column name="id" type="bigint" autoIncrement="true">
+        <constraints primaryKey="true" nullable="false" unique="true"/>
+      </column>
+      <column name="tickets" type="int">
+        <constraints nullable="false"/>
+      </column>
+      <column name="buyer" type="bigint">
+        <constraints nullable="false" references="users(id)" foreignKeyName="fk_order_buyer"/>
+      </column>
+      <column name="show" type="bigint">
+        <constraints nullable="false" references="shows(id)" foreignKeyName="fk_organizations_parent"/>
+      </column>
+    </createTable>
+  </changeSet>
+</databaseChangeLog>
